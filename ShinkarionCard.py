@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import pandas as pd
 from pyzbar.pyzbar import decode
 import face_recognition
-logger = logging.getLogger()
+logger = logging.getLogger("shinkarion")
 logger.setLevel('INFO')
 shinka_dict = {b"http://www.shinkalion.com?sfefbeksjebs": "resources/E5Hayabusa.png",
                b"http://www.shinkalion.com?fkyfkyysyels": "resources/E7Kagayaki.png",
@@ -51,6 +51,7 @@ def warp_rectangle(src, dst, src_pts, dst_pts, **kwargs):
     warp(src, dst, src_pts, dst_pts,
          cv2.getPerspectiveTransform, cv2.warpPerspective, **kwargs)
 
+
 def landmarks_to_my_points(landmarks, scale=1.0):
     """
     convert landmarks to self-made point lists.
@@ -84,6 +85,8 @@ def landmarks_to_my_points(landmarks, scale=1.0):
 # https://qiita.com/jrfk/items/76c308ef163c02e85bcb
 # QR Code Write
 # https://note.nkmk.me/python-pillow-qrcode/
+
+
 if __name__ == "__main__":
     shinka_image_dict = {}
     for key, image_file in shinka_dict.items():
@@ -96,6 +99,8 @@ if __name__ == "__main__":
     card_y = 200
     id = 0
     run_id = "test3"
+    # Define points for Shinkarion
+    # TODO: Define polints for E5 Hayabusa, E6 Komachi, Dr Yellow, Black Shinkarion
     src_pts = [
         [154, 539],
         [245, 707],
@@ -117,6 +122,7 @@ if __name__ == "__main__":
     ]
     src_pts = np.array(src_pts, dtype=np.float32)
     mesh_list = [
+        # mixture of Perspective and Affine is not good.
         [0, 5, 1],
         [5, 8, 1],
         [8, 13, 1],
@@ -142,36 +148,6 @@ if __name__ == "__main__":
         # Capture frame-by-frame
         ret, frame = cap.read()
 
-        # Calculate Histogram
-        card_image = frame[card_y: card_y + card_h, card_x: card_x + card_w]
-        bgr_planes = cv2.split(card_image)
-        histSize = 256
-        histRange = (0, 256)  # the upper boundary is exclusive
-        accumulate = False
-        b_hist = cv2.calcHist(bgr_planes, [0], None, [histSize], histRange, accumulate=accumulate)
-        g_hist = cv2.calcHist(bgr_planes, [1], None, [histSize], histRange, accumulate=accumulate)
-        r_hist = cv2.calcHist(bgr_planes, [2], None, [histSize], histRange, accumulate=accumulate)
-        hist_w = 512
-        hist_h = 400
-        bin_w = int(round(hist_w / histSize))
-        histImage = np.zeros((hist_h, hist_w, 3), dtype=np.uint8)
-        cv2.normalize(b_hist, b_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
-        cv2.normalize(g_hist, g_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
-        cv2.normalize(r_hist, r_hist, alpha=0, beta=hist_h, norm_type=cv2.NORM_MINMAX)
-        for i in range(1, histSize):
-            cv2.line(histImage, (bin_w * (i - 1), hist_h - int(np.round(b_hist[i - 1]))),
-                    (bin_w * (i), hist_h - int(np.round(b_hist[i]))),
-                    (255, 0, 0), thickness=2)
-            cv2.line(histImage, (bin_w * (i - 1), hist_h - int(np.round(g_hist[i - 1]))),
-                    (bin_w * (i), hist_h - int(np.round(g_hist[i]))),
-                    (0, 255, 0), thickness=2)
-            cv2.line(histImage, (bin_w * (i - 1), hist_h - int(np.round(r_hist[i - 1]))),
-                    (bin_w * (i), hist_h - int(np.round(r_hist[i]))),
-                    (0, 0, 255), thickness=2)
-        # cv2.imshow('Source image', src)
-        cv2.imshow('calcHist Demo', histImage)
-        # Our operations on the frame come here
-        # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Display the resulting frame
         # cv2.flip(img, 1)
@@ -197,8 +173,6 @@ if __name__ == "__main__":
             face_landmarks_list = face_recognition.face_landmarks(frame_rgb)
             if henshin_mode is not None:
                 print(f"print {henshin_mode}")
-                # resize_shinkarion = cv2.resize(shinka_image_dict[henshin_mode], (right - left, bottom - top))
-                # disp_frame[top: bottom, left: right] = resize_shinkarion
                 for landmarks in face_landmarks_list:
                     dst_pts = landmarks_to_my_points(landmarks, scale=4.0)
 
@@ -209,12 +183,6 @@ if __name__ == "__main__":
                             warp_rectangle(shinka_image_dict[henshin_mode], disp_frame, src_pts[mesh], dst_pts[mesh])
             else:
                 cv2.rectangle(disp_frame, (left, top), (right, bottom), (255, 255, 255))
-            # pil_image = Image.fromarray(frame_rgb)
-            # for face_landmarks in face_landmarks_list:
-
-
-                # cv2.imshow("makeup", frame_bgr)
-        #     print(qr_data)
         cv2.imshow('frame', disp_frame)
         chr = cv2.waitKey(1) & 0xFF
         if chr == ord('q'):
