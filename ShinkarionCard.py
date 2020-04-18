@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 import logging
 import pickle
+import glob
 
 import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
@@ -13,16 +14,31 @@ logger.setLevel('INFO')
 shinka_dict = {b"http://www.shinkalion.com?sfefbeksjebs": "resources/E5Hayabusa.png",
                b"http://www.shinkalion.com?fkyfkyysyels": "resources/E7Kagayaki.png",
                b'http://www.shinkalion.com?bfyfkyksblts': "resources/E6Komachi.png",
-               b'http://www.shinkalion.com?ifffvfksllys': "resources/DrYellow.png"}
+               b'http://www.shinkalion.com?ifffvfksllys': "resources/DrYellow.png",
+               b'http://www.shinkalion.com?jfsfbsksckbs': "resources/N700Nozomi.png",
+               }
 shinka_str_dict = {b"http://www.shinkalion.com?sfefbeksjebs": "E5 Hayabusa",
                b"http://www.shinkalion.com?fkyfkyysyels": "E7 Kagayaki",
                b'http://www.shinkalion.com?bfyfkyksblts': "E6 Komachi",
                b'http://www.shinkalion.com?ifffvfksllys': "Dr. Yellow",
+               b'http://www.shinkalion.com?jfsfbsksckbs': "N700 Advanced",
 }
-henshin_mode = "E7 Kagayaki"
 
+# henshin_mode = "E7 Kagayaki"
+henshin_mode = "N700 Advanced"
 
 def warp(src, dst, src_pts, dst_pts, transform_func, warp_func, **kwargs):
+    """
+    https://note.nkmk.me/python-opencv-image-warping/
+    :param src:
+    :param dst:
+    :param src_pts:
+    :param dst_pts:
+    :param transform_func:
+    :param warp_func:
+    :param kwargs:
+    :return:
+    """
     src_pts_arr = np.array(src_pts, dtype=np.float32)
     dst_pts_arr = np.array(dst_pts, dtype=np.float32)
     src_rect = cv2.boundingRect(src_pts_arr)
@@ -38,8 +54,9 @@ def warp(src, dst, src_pts, dst_pts, transform_func, warp_func, **kwargs):
     mask = np.zeros_like(dst_crop, dtype=np.float32)
     cv2.fillConvexPoly(mask, dst_pts_crop.astype(np.int), (1.0, 1.0, 1.0), cv2.LINE_AA)
 
-    dst_crop_merge = warp_img * mask + dst_crop * (1 - mask)
-    dst[dst_rect[1]:dst_rect[1] + dst_rect[3], dst_rect[0]:dst_rect[0] + dst_rect[2]] = dst_crop_merge
+    if warp_img.shape == mask.shape and mask.shape == dst_crop.shape:
+        dst_crop_merge = warp_img * mask + dst_crop * (1 - mask)
+        dst[dst_rect[1]:dst_rect[1] + dst_rect[3], dst_rect[0]:dst_rect[0] + dst_rect[2]] = dst_crop_merge
 
 
 def warp_triangle(src, dst, src_pts, dst_pts, **kwargs):
@@ -98,7 +115,7 @@ if __name__ == "__main__":
     card_x = 900
     card_y = 200
     id = 0
-    run_id = "test3"
+    run_id = "test5"
     # Define points for Shinkarion
     # TODO: Define polints for E5 Hayabusa, E6 Komachi, Dr Yellow, Black Shinkarion
     src_pts = [
@@ -128,11 +145,16 @@ if __name__ == "__main__":
         [8, 13, 1],
         [5, 6, 8],
         [6, 7, 8],
-        [8, 7, 14],
-        [8, 14, 13],
-        [7, 9, 14],
-        [9, 12, 14],
-        [12, 15, 14],
+        [8, 7, 16],
+        # [8, 7, 14],
+        [8, 16, 13],
+        # [8, 14, 13],
+        [7, 9, 16],
+        # [7, 9, 14],
+        [9, 12, 16],
+        # [9, 12, 14],
+        [12, 15, 16],
+        # [12, 15, 14],
         [9, 10, 12],
         [10, 11, 12],
         [12, 3, 15],
@@ -144,20 +166,33 @@ if __name__ == "__main__":
         [15, 3, 2],
     ]
 
+    # Encodings
+    # See: https://github.com/ageitgey/face_recognition/blob/master/examples/facerec_from_webcam_faster.py
+    file_list = glob.glob("resources/face_*")
+    known_face_encodings = []
+    known_face_names = []
+    for face_file in file_list:
+        # Load a sample picture and learn how to recognize it.
+        image = face_recognition.load_image_file(face_file)
+        face_encoding = face_recognition.face_encodings(image)[0]
+        known_face_encodings.append(face_encoding)
+        known_face_names.append(face_file.split("_")[1].split(".")[0])
+
     while True:
         # Capture frame-by-frame
         ret, frame = cap.read()
-
 
         # Display the resulting frame
         # cv2.flip(img, 1)
         disp_frame = frame.copy()
 
-        cv2.rectangle(disp_frame, (card_x, card_y), (card_x + card_w, card_y + card_h), (255, 255, 255), thickness=3)
+        # cv2.rectangle(disp_frame, (card_x, card_y), (card_x + card_w, card_y + card_h), (255, 255, 255), thickness=3)
         qr_data = pd.DataFrame(decode(frame))
         small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
         frame_rgb = small_frame[:, :, ::-1]
         face_locations = face_recognition.face_locations(frame_rgb)
+        face_encodings = face_recognition.face_encodings(frame_rgb, face_locations)
+
         print(henshin_mode)
         if not qr_data.empty:
             print(qr_data.data[0])
@@ -165,24 +200,40 @@ if __name__ == "__main__":
                 henshin_mode = shinka_str_dict[qr_data.data[0]]
 
         # Draw Shinkarion Image
-        for top, right, bottom, left in face_locations:
-            top *= 4
-            right *= 4
-            bottom *= 4
-            left *= 4
+        for idx, face_location in enumerate(face_locations):
+            face_encoding = face_encodings[idx]
+            top_, right_, bottom_, left_ = face_location
+            top = top_ * 4
+            right = right_ * 4
+            bottom = bottom_ * 4
+            left = left_ * 4
             face_landmarks_list = face_recognition.face_landmarks(frame_rgb)
             if henshin_mode is not None:
                 print(f"print {henshin_mode}")
-                for landmarks in face_landmarks_list:
-                    dst_pts = landmarks_to_my_points(landmarks, scale=4.0)
+                if henshin_mode == "E7 Kagayaki":
+                    for landmarks in face_landmarks_list:
+                        dst_pts = landmarks_to_my_points(landmarks, scale=4.0)
 
-                    for mesh in mesh_list:
-                        if len(mesh) == 3:
-                            warp_triangle(shinka_image_dict[henshin_mode], disp_frame, src_pts[mesh], dst_pts[mesh])
-                        elif len(mesh) == 4:
-                            warp_rectangle(shinka_image_dict[henshin_mode], disp_frame, src_pts[mesh], dst_pts[mesh])
+                        for mesh in mesh_list:
+                            if len(mesh) == 3:
+                                warp_triangle(shinka_image_dict[henshin_mode], disp_frame, src_pts[mesh], dst_pts[mesh])
+                            elif len(mesh) == 4:
+                                warp_rectangle(shinka_image_dict[henshin_mode], disp_frame, src_pts[mesh], dst_pts[mesh])
+                else:
+                    resize_shinakrion_image = cv2.resize(shinka_image_dict[henshin_mode], (right - left, bottom - top))
+                    disp_frame[top:bottom, left:right] = resize_shinakrion_image
+
             else:
                 cv2.rectangle(disp_frame, (left, top), (right, bottom), (255, 255, 255))
+            matches = face_recognition.compare_faces(known_face_encodings, face_encoding)
+            name = "Unknown"
+            # If a match was found in known_face_encodings, just use the first one.
+            face_distances = face_recognition.face_distance(known_face_encodings, face_encoding)
+            best_match_index = np.argmin(face_distances)
+            if matches[best_match_index]:
+                name = known_face_names[best_match_index]
+            cv2.putText(disp_frame, name, (left, top), cv2.FONT_HERSHEY_PLAIN, 3, (255, 255, 255), 2)
+
         cv2.imshow('frame', disp_frame)
         chr = cv2.waitKey(1) & 0xFF
         if chr == ord('q'):
@@ -191,8 +242,10 @@ if __name__ == "__main__":
             filename_prefix = "{}-{}".format(run_id, id)
             id += 1
             cv2.imwrite(f"{filename_prefix}.png", frame)
+            cv2.imwrite(f"{filename_prefix}_disp.png", disp_frame)
             with open(f"{filename_prefix}.pkl", "wb") as f:
                 pickle.dump(face_landmarks_list[0], f)
+
             logger.info("write: {}".format(filename_prefix))
 
 
